@@ -15,11 +15,9 @@ It addresses sparse monitoring in rural or under-sampled regions by leveraging f
 - Hypernetwork uses static molecular descriptors, with future work planned for richer molecular descriptors (e.g., using QM, etc)
 
 ## Project Structure
-- `data/`: input datasets and generated preprocessing artifacts
 - `falcon/pipeline/`: preprocessing, feature engineering, clustering, plotting, and model code
 - `falcon/federated/`: federated learning protocol implementation
 - `falcon/utils/`: utility functions
-- `figs/`: generated figures
 - `falcon/config.py`: experiment configuration
 - `falcon/run.py`: launches FALCON training and evaluation
 - `falcon/xgb.py`: centralized XGBoost baseline
