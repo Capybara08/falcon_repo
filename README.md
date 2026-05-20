@@ -40,7 +40,7 @@ python -m pip install -r requirements.txt
 Run commands from the repository root.
 
 ```bash
-python falcon/run.py
+python falcon/launch.py
 ```
 
 To run the centralized XGBoost baseline:
