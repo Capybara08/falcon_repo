@@ -8,7 +8,7 @@ Import from here rather than defining inline in run.py.
 
 GLOBAL_FEATS = [
     'Facility_1km',
-    'Facility_3km'
+    'Facility_3km',
     'TDS',
     'SO4',
     'FE',
@@ -20,7 +20,7 @@ GLOBAL_FEATS = [
     'Evapotranspiration_mm',
     'Texture_USDA', 
     '%Pass_2_Micron_Sieve', 
-    'Gradation_Uniformity'
+    'Gradation_Uniformity',
     'redox_proxy',
     'leaching_index',
     'env_ionic_strength',

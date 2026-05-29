@@ -396,7 +396,6 @@ def train_global(global_model, global_dataloader, optimizer, epochs, kl_beta=0.0
             data_loss = adaptive_masked_loss(
                 logits, y_glob, 
                 adaptive_alpha=adaptive_factors.to(logits.device) if adaptive_alpha is not None else None)
-
             """
             data_loss = masked_loss(logits, y_glob)
             """
@@ -416,7 +415,6 @@ def train_global(global_model, global_dataloader, optimizer, epochs, kl_beta=0.0
             
             epoch_data += data_loss.item()
             epoch_kl += kl_div.item()
-            # --- ADAPTIVE UPDATE LOGIC ---
         with torch.no_grad():
             preds = torch.cat(all_preds, dim=0)
             trues = torch.cat(all_true, dim=0)
@@ -477,10 +475,10 @@ def train_local(local_model, local_dloader, local_chain_names, epochs):
             y_loc_tar = y_loc[:, target_indices]
             _, local_logits = local_model(x_glob, x_loc, y_glob_tar=y_glob, y_loc_tar=y_loc_tar)
             
-            # 3. Masked Loss: Use the fixed version that handles NaNs and raw concentrations
+            # Masked Loss: Use the fixed version that handles NaNs and raw concentrations
             data_loss = adaptive_masked_loss(local_logits, y_loc_tar, adaptive_alpha=local_adaptive_factors)
             
-            # 4. KL Divergence: Summing over the Bayesian layers in the tail
+            # KL Divergence: Summing over the Bayesian layers in the tail
             total_kl = sum(layer.kl_divergence() for layer in local_model.local_tail)
             # Scale KL by N to keep data likelihood dominant
             kl_beta = 0.001
@@ -519,16 +517,45 @@ def train_local(local_model, local_dloader, local_chain_names, epochs):
 
     return local_model # return actual local model just like reptile
 
-# def median_impute(tensor):
-#     for col in range(tensor.shape[1]):
-#         col_vals = tensor[:, col]
-#         nan_mask = torch.isnan(col_vals)
-#         if nan_mask.any() and (~nan_mask).any():  # has NaNs but also has valid values
-#             median_val = col_vals[~nan_mask].median()
-#             tensor[:, col] = torch.where(nan_mask, median_val, col_vals)
-#         elif nan_mask.all():  # entire column is NaN, fall back to 0
-#             tensor[:, col] = 0.0
-#     return tensor
+def finetune_global(agents, config, GLOBAL_CHAIN_FIN, adaptive_alpha):
+    """
+    Finetuning for the global heads. The global backbone is partially unfrozen.
+    Uses the global chain of PFAS.
+    Gets the personalized local env input features.
+    """
+    # List storing data for compare and loss comp
+    epochs = config.get('finetune_epochs', 10)
+    adaptive_factors = torch.ones(model.pfas_num_classes, device='cpu')
+    # Grab the local features needed
+    # Each node has the global training phase + local training phase
+    # Grab the local data w local_dloader for the node
+    for node_id, agent in agents.items():
+        model = agent['model'] # Grab the model
+        model.train() # Training mode...
+        # Freeze all but classifier layer (fine tuning)
+        for name, param in model.named_parameters():
+            param.requires_grad = 'classifier' in name or 'output' in name
+        optimizer = torch.optim.Adam(
+            filter(lambda p: p.requires_grad, model.parameters()),
+            lr=0.002
+        )
+        for epoch in range(epochs):
+            for x_gb, y_gb, x_lc, y_lc in agent['train_loader']:
+                # iterate through and grab local
+                optimizer.zero_grad()
+                inputs = x_lc
+                outputs = y_gb # The global PFAS data.
+                logits = model(x_lc, y_true=y_gb) # Forward pass; global model.
+                # Do i need it?? --> tf_ratio=max(0, 1.0 - epoch/epochs)
+                adaptive_alpha=adaptive_factors.to(logits.device) if adaptive_alpha is not None else None
+                loss = adaptive_masked_loss(logits, y_gb, adaptive_alpha=adaptive_alpha)
+                loss.backward()
+                optimizer.step()
+        
+        agent['finetuned_global_state'] = model.state_dict() # Do save to global model so CFL can have its effects
+        # Unfreeze for next federated run if needed
+        for param in model.parameters():
+            param.requires_grad_(True)
 
 def get_bayes_pred(model, x_glob, x_loc=None, n_samples=50, debug_name=None, target_type='global'):
     # Returns mean prediction and "epistemic" uncertainties (std dev)
@@ -660,19 +687,6 @@ def masked_loss(logits, targets, pos_weight_cap=10.0):
     mask = ~torch.isnan(targets)
     if not mask.any():
         return torch.tensor(0.0, device=logits.device, requires_grad=True)        # If NO data is present in this batch, return a zero loss 
-        # # that still allows the graph to exist
-        
-        # # write the analytics to a test file
-        # try:
-        #     with open('zero_loss.txt', 'x') as f:
-        #         f.write(f"Target data: {targets}")
-        #         f.write(f"Logits: {logits}")
-        # except FileExistsError:
-        #     with open('zero_loss.txt', 'a') as f:
-        #         f.write(f"Target data: {targets}")
-        #         f.write(f"Logits: {logits}")
-
-        # return torch.tensor(0.0, device=logits.device, requires_grad=True)
 
     # Per analyte pos_weight form the batch
     num_analytes = targets.shape[1]
