@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from pipeline.bayesModel import PFASLocal, train_global, create_personalized_tail, reptile_adapt_fin, train_local
+from pipeline.bayesModel import PFASLocal, train_global, create_personalized_tail, reptile_adapt_fin, train_local, finetune_global
 from federated.gossip import clusteredFedLearning, compute_similarity_matrix, check_divergence, gossipUpdate
 from utils.logging import save_checkpoint
 from federated.topology import intra_p2p_topology
@@ -184,6 +184,25 @@ def run_federated_rounds(agents, G, config, N_global, run_dir, GLOBAL_CHAIN_FIN,
             run_local_personalization(agents, LOCAL_CHAIN_FIN, [*LOCAL_CHAIN_FIN, *GLOBAL_CHAIN_FIN], LOCAL_FEATS_FIN, config, MOLECULAR_DESCRIPTORS=MOLECULAR_DESCRIPTORS,
                                       adaptive_alpha=adaptive_alpha)
         
+
+        # Sync .model with updated state dict after all gossip is done
+        for node_id, agent in agents.items():
+            agent['model'].load_state_dict(agent['global_model_state'])
+
+        # 2. INSERT FINETUNE STEP HERE (The "Global Head Adaptation")
+        # This takes the consensus weights from gossip and aligns them with local x_lc
+        print(f"  [Fine-tuning] Adapting global heads to local environmental inputs...")
+        new_state = finetune_global(agents, config, GLOBAL_CHAIN_FIN, adaptive_alpha)
+
+        # 3. Update the state dicts again so the fine-tuned weights 
+        # are saved back for the next communication round.
+        for node_id, agent in agents.items():
+            agent['global_model_state'] = new_state
+
+        # Sync .model with updated state dict after all gossip is done.
+        for node_id, agent in agents.items():
+            agent['model'].load_state_dict(agent['global_model_state'])
+
         # Compute similarity on global states.
         network_sim_matrix, node_ids = compute_similarity_matrix(agents)
         diverged = check_divergence(network_sim_matrix, agents.keys(), agents)
@@ -252,11 +271,6 @@ def run_federated_rounds(agents, G, config, N_global, run_dir, GLOBAL_CHAIN_FIN,
                 'n_clusters': len(cluster_map),
                 'cluster_sizes': {k: len(v) for k, v in cluster_map.items()}
             })
-          
-        # Sync .model with updated state dict after all gossip is done.
-        for node_id, agent in agents.items():
-            agent['model'].load_state_dict(agent['global_model_state'])
-
         # Bookkeeping.
         bce_history.append(np.mean(round_bce) if round_bce else float('nan'))
         kl_history.append(np.mean(round_kl))

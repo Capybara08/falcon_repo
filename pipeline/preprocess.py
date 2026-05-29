@@ -17,6 +17,9 @@ from shapely.geometry import Point
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 import statsmodels.api as sm
 from pathlib import Path
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import config
 from config import PFAS_CLASSES
 """
 Dropped columns include: 'gm_dataset_name'
@@ -198,7 +201,7 @@ def cleaned_data():
     Returns
     df : raw DataFrame ready for preprocess()
     """
-    df = pd.read_csv('/Users/JasL/Desktop/research/sci-fair/pfas_code.py/data/cali_pfas.csv')
+    df = pd.read_csv('/Users/JasL/falcon_repo/data/cali_pfas.csv')
     cols_to_drop = ['gm_dataset_name']
     print(f"Dropping cols: ", cols_to_drop)
     df = df.drop(columns=cols_to_drop)
@@ -216,7 +219,7 @@ def cleaned_data():
     ax.set_xlabel('Samples per well')
     ax.set_ylabel("Frequency")
     fig.tight_layout()
-    fig.savefig('figs/preprocessFigs/well_dist_hist.png', dpi=300, bbox_inches='tight')
+    fig.savefig('figs/preprocess_figs/well_dist_hist.png', dpi=300, bbox_inches='tight')
     pfas_list = ['PFHxA', 'PFHpA','PFOA','PFNA','PFDA','PFUnA','PFDoA','PFTrDA','PFTA','PFBS',
                 'PFHxS','PFOS','NETFOSAA','NMEFOSAA',
             'ADONA','HFPO_DA','11ClPF3OUDS','9ClPF3ONS',
@@ -753,7 +756,7 @@ def histograms(df):
     Parameters
     df : DataFrame
     """
-    os.makedirs('/Users/JasL/Desktop/research/sci-fair/pfa_code.py/figs/histograms', exist_ok=True)
+    os.makedirs('falcon_repo/figs/histograms', exist_ok=True)
     numeric_cols = df.select_dtypes(include=['float', 'int']).columns
 
     for col in numeric_cols:
@@ -781,7 +784,7 @@ def boxplots(df):
     Parameters
     df : DataFrame
     """
-    os.makedirs('boxplots', exist_ok=True)
+    os.makedirs('falcon_repo/figs/boxplots', exist_ok=True)
     numeric_cols = df.select_dtypes(include=['number']).columns
     for col in numeric_cols:
         fig, ax = plt.subplots(figsize=(8, 5))
@@ -845,5 +848,5 @@ if __name__=="__main__":
     df = preprocess(cleaned_data())    
     print("DF num cols: ", len(df.columns))
     print("DF num rows: ", len(df))
-    print("DF summary: ", df.summary())
+    print("DF summary: ", df.head())
 

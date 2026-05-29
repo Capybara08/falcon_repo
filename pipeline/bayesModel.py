@@ -11,11 +11,10 @@ import pickle
 import os
 import sys
 import time
-from pipeline.features import analyte_meta_tensor
 
-utils_path = os.path.abspath('/Users/JasL/Desktop/research/sci-fair/pfa_code.py/my_utils.py')
+utils_path = os.path.abspath('falcon_repo/utils')
 sys.path.append(utils_path)
-preprocess_path = os.path.abspath('/Users/JasL/Desktop/research/sci-fair/pfa_code.py/pipeline/preprocess.py')
+preprocess_path = os.path.abspath('falcon_repo/pipeline/preprocess.py')
 sys.path.append(preprocess_path)
 
 # pos_weight = torch.tensor([10.0]) # Give 10x importance to a detection.
@@ -415,6 +414,7 @@ def train_global(global_model, global_dataloader, optimizer, epochs, kl_beta=0.0
             
             epoch_data += data_loss.item()
             epoch_kl += kl_div.item()
+        
         with torch.no_grad():
             preds = torch.cat(all_preds, dim=0)
             trues = torch.cat(all_true, dim=0)
@@ -550,12 +550,13 @@ def finetune_global(agents, config, GLOBAL_CHAIN_FIN, adaptive_alpha):
                 adaptive_alpha=adaptive_factors.to(logits.device) if adaptive_alpha is not None else None
                 loss = adaptive_masked_loss(logits, y_gb, adaptive_alpha=adaptive_alpha)
                 loss.backward()
+                print(f"Epoch: {epoch} Loss: {loss}")
                 optimizer.step()
         
-        agent['finetuned_global_state'] = model.state_dict() # Do save to global model so CFL can have its effects
         # Unfreeze for next federated run if needed
         for param in model.parameters():
             param.requires_grad_(True)
+    return model.state_dict()
 
 def get_bayes_pred(model, x_glob, x_loc=None, n_samples=50, debug_name=None, target_type='global'):
     # Returns mean prediction and "epistemic" uncertainties (std dev)
