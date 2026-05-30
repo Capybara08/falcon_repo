@@ -59,7 +59,7 @@ def perBasin(df, pkl_filepth=None):
     try:
         # Load DWR Shapefile.
         # Path should point to the .shp file.
-        shp_path = 'pfas_code.py/i08_B118_CA_GroundWaterBasins_2003/i08_B118_CA_GroundWaterBasins_2003.shp'
+        shp_path = 'i08_B118_CA_GroundWaterBasins_2003'
         basin_gdf = gpd.read_file(shp_path)
         basin_gdf = basin_gdf.to_crs("EPSG:4326")
 
@@ -137,38 +137,82 @@ def perCounty(df, pkl_filepth=None):
     print("LATITUDE AND LONG: ", null_county[['latitude', 'longitude']])
     print("Columns: ", null_county.columns)
 
-    try:
-        print("NO CONVERTED DF WAS FOUND")
-        for row in null_county.itertuples(): # Indexes are not reset.
-            lat = row.latitude
-            long = row.longitude
+    print("NO CONVERTED DF WAS FOUND — running reverse geocoding")
+    for row in null_county.itertuples():
+        lat = row.latitude
+        long = row.longitude
+        try:
             location = geocode_reverse((lat, long))
-            print(lat, long)
-            print("LOCATION: ", location)
-            if location:
-                county_name = location.raw.get('address', {}).get('county')
-                print("COUNTY NAME: ", county_name)
-                df.loc[row.Index, 'gm_gis_county'] = county_name
-                if county_name:
-                    print(f"Coordinates ({lat}, {long}) are in County: {county_name}")
-                else:
-                    print(f"County data not directly found in 'county' field. Full address: {location.address}")
-            else:
-                print(f"Could not find location for ({lat}, {long})")
+        except Exception as e:
+            print(f"  Geocoding failed for ({lat}, {long}): {e} — skipping row")
+            continue
 
-    except Exception as e:
-        print(f"An error occurred: {e}")
-    
+        if not location:
+            print(f"  No location returned for ({lat}, {long})")
+            continue
+
+        address = location.raw.get('address', {})
+        # Nominatim uses 'county' for most CA counties but falls back to
+        # 'city', 'town', or 'municipality' for some unincorporated areas.
+        county_name = (
+            address.get('county')
+            or address.get('city')
+            or address.get('town')
+            or address.get('municipality')
+            or address.get('state_district')
+        )
+
+        if county_name:
+            # Normalize to uppercase to match the rest of your county values.
+            df.loc[row.Index, 'gm_gis_county'] = county_name.upper().replace(' COUNTY', '').strip()
+            print(f"  ({lat}, {long}) → {df.loc[row.Index, 'gm_gis_county']}")
+        else:
+            print(f"  No county field in address for ({lat}, {long}). Full: {location.address}")
+            # Leave as-is — don't overwrite with None
+
     remaining_unknowns = df[df['gm_gis_county'].isin(['unknown', 'NO COUNTY FOUND'])]
-    if len(remaining_unknowns)==0:
-        # Pickle it.
+    if len(remaining_unknowns) == 0:
         save_path = pkl_filepth if pkl_filepth else 'convertedCounties.pkl'
         df.to_pickle(save_path)
         print(f"Pickled converted counties to {save_path}")
         return df
     else:
-        print(f"Did not pickle. Still {len(remaining_unknowns)} rows left to convert.")
+        print(f"Still {len(remaining_unknowns)} rows unconverted after geocoding:")
+        print(remaining_unknowns[['latitude', 'longitude', 'gm_gis_county']])
+        # Return df anyway — don't crash the pipeline over a few unconverted rows
+        return df
 
+    #     print("NO CONVERTED DF WAS FOUND")
+    #     for row in null_county.itertuples(): # Indexes are not reset.
+    #         lat = row.latitude
+    #         long = row.longitude
+    #         location = geocode_reverse((lat, long))
+    #         print(lat, long)
+    #         print("LOCATION: ", location)
+    #         if location:
+    #             county_name = location.raw.get('address', {}).get('county')
+    #             print("COUNTY NAME: ", county_name)
+    #             df.loc[row.Index, 'gm_gis_county'] = county_name
+    #             if county_name:
+    #                 print(f"Coordinates ({lat}, {long}) are in County: {county_name}")
+    #             else:
+    #                 print(f"County data not directly found in 'county' field. Full address: {location.address}")
+    #         else:
+    #             print(f"Could not find location for ({lat}, {long})")
+
+    # except Exception as e:
+    #     print(f"An error occurred: {e}")
+    
+    # remaining_unknowns = df[df['gm_gis_county'].isin(['unknown', 'NO COUNTY FOUND'])]
+    # if len(remaining_unknowns)==0:
+    #     # Pickle it.
+    #     save_path = pkl_filepth if pkl_filepth else 'convertedCounties.pkl'
+    #     df.to_pickle(save_path)
+    #     print(f"Pickled converted counties to {save_path}")
+    #     return df
+    # else:
+    #     print(f"Did not pickle. Still {len(remaining_unknowns)} rows left to convert.")
+    #     return df
 def findBasins(df):
     """
     Fills in the missing basin data using the geopandas locator merged with the CA groundwater basins datasets

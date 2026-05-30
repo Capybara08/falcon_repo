@@ -153,9 +153,11 @@ def main():
         num_analytes = len(GLOBAL_CHAIN)
         adaptive_alpha = torch.ones(num_analytes)
 
+        # launch.py — fix the argument order
         histories = run_federated_rounds(
             agents, G, config, N_global, run_dir,
-            LOCAL_CHAIN_FIN, GLOBAL_CHAIN_FIN, GLOBAL_FEATS_FIN, LOCAL_FEATS_FIN,
+            GLOBAL_CHAIN_FIN, LOCAL_CHAIN_FIN,  # ← was reversed
+            GLOBAL_FEATS_FIN, LOCAL_FEATS_FIN,
             adaptive_alpha=adaptive_alpha
         )
 
