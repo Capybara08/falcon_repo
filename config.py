@@ -322,6 +322,6 @@ PATHS = {
     'converted_basins':   'data/convertedBasins.pkl',
     'runs_base':       'runs/',
     'registry':        'runs/registry.csv',
-    'basin_shapefile': 'pfas_code.py/i08_B118_CA_GroundWaterBasins_2003/'
+    'basin_shapefile': 'falcon_repo/i08_B118_CA_GroundWaterBasins_2003/'
                        'i08_B118_CA_GroundWaterBasins_2003.shp',
 }

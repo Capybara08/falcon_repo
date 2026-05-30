@@ -1,0 +1,8 @@
+{
+  "config_idx": 0,
+  "comm_rounds": 35,
+  "local_epochs": 10,
+  "finetune_epochs": 15,
+  "gossip_every": 5,
+  "description": "Baseline \u2014 let weights diverge before any aggregation"
+}

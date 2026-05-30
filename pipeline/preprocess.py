@@ -88,6 +88,7 @@ def perBasin(df, pkl_filepth=None):
 
     except Exception as e:
         print(f"Spatial join error: {e}")
+        return df
 
     # Final check and Pickle.
     remaining_unknowns = df[df['gm_gis_dwr_basin'].isin(['unknown'])]
